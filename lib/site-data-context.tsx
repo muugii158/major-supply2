@@ -1,23 +1,27 @@
 "use client"
 
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react"
+import { createContext, useContext, useEffect, useState, useCallback } from "react"
+import { supabase } from "@/lib/supabase"
 
-// =====================
-// Types
-// =====================
+// =============================================
+// TYPES
+// =============================================
+export interface HeroSlide {
+  id: string
+  image: string
+  title: string
+  subtitle: string
+  buttonText: string
+  buttonLink: string
+  isActive: boolean
+  order: number
+}
 
-export interface CompanyInfo {
-  name: string
-  phone: string
-  email: string
-  address: string
-  logo: string | null
+export interface Category {
+  id: string
+  title: string
+  description: string
+  productCount: number
 }
 
 export interface Product {
@@ -27,13 +31,6 @@ export interface Product {
   description: string
   details: string
   image: string | null
-}
-
-export interface Category {
-  id: string
-  title: string
-  description: string
-  productCount: number
 }
 
 export interface Project {
@@ -57,23 +54,6 @@ export interface Partner {
   email?: string
 }
 
-export interface HeroSlide {
-  id: string
-  image: string
-  title: string
-  subtitle: string
-  buttonText: string
-  buttonLink: string
-  isActive: boolean
-  order: number
-}
-
-export interface AboutImage {
-  id: string
-  url: string
-  caption: string
-}
-
 export interface TeamMember {
   id: string
   name: string
@@ -82,13 +62,19 @@ export interface TeamMember {
   bio: string
 }
 
+export interface GalleryImage {
+  id: string
+  url: string
+  caption: string
+}
+
 export interface AboutContent {
   mainTitle: string
   mainDescription: string
   mission: string
   vision: string
   history: string
-  images: AboutImage[]
+  images: GalleryImage[]
   stats: { label: string; value: string }[]
   team: TeamMember[]
 }
@@ -131,21 +117,28 @@ export interface ContactContent {
   }
 }
 
+export interface CompanyInfo {
+  name: string
+  phone: string
+  email: string
+  address: string
+  logo: string
+}
+
 export interface SiteData {
   companyInfo: CompanyInfo
-  products: Product[]
+  heroSlides: HeroSlide[]
   categories: Category[]
+  products: Product[]
   projects: Project[]
   partners: Partner[]
-  heroSlides: HeroSlide[]
   aboutContent: AboutContent
   contactContent: ContactContent
 }
 
-// =====================
-// Default / Initial Data
-// =====================
-
+// =============================================
+// DEFAULT DATA
+// =============================================
 const defaultData: SiteData = {
   companyInfo: {
     name: "Major Supply LLC",
@@ -154,335 +147,482 @@ const defaultData: SiteData = {
     address: "Улаанбаатар хот, Баянзүрх дүүрэг, 1-р хороо",
     logo: "/logo.png",
   },
-  products: [
-    {
-      id: "1",
-      title: "Армирован Бетон Дамнуруу",
-      category: "Дамнуруу",
-      description:
-        "Өндөр хүчин чадалтай армирован бетон дамнуруу. Барилгын суурь, хана, шал зэрэгт хэрэглэнэ.",
-      details: "Шахалтын бат бэх: 500 кг/см², Арматур: A500C",
-      image: null,
-    },
-    {
-      id: "2",
-      title: "Төмөр Бетон Шон",
-      category: "Шон",
-      description:
-        "Цахилгаан, холбооны шугам татахад зориулагдсан бетон шон.",
-      details: "Өндөр: 9м, 11м, 13м, Даац: 500кг",
-      image: null,
-    },
-  ],
-  categories: [
-    { id: "1", title: "Дамнуруу", description: "Армирован бетон дамнуруу, гүүрийн дамнуруу", productCount: 0 },
-    { id: "2", title: "Шон", description: "Цахилгааны шон, холбооны шон, гэрэлтүүлгийн шон", productCount: 0 },
-    { id: "3", title: "Хавтан", description: "Дээврийн хавтан, шалны хавтан, хана хавтан", productCount: 0 },
-    { id: "4", title: "Блок", description: "Хөнгөн бетон блок, керамзит блок, фундаментийн блок", productCount: 0 },
-    { id: "5", title: "Хоолой", description: "Канализацийн хоолой, ус дамжуулах хоолой", productCount: 0 },
-  ],
-  projects: [
-    {
-      id: "1",
-      title: "Худалдааны Төв Барилга",
-      description: "25,000 м² талбай бүхий орчин үеийн худалдааны төв барилга. Бүх төрлийн төмөр бетон эдлэлээр хангасан.",
-      location: "Улаанбаатар хот",
-      year: "2024",
-      image: null,
-    },
-    {
-      id: "2",
-      title: "Орон Сууцны Хороолол",
-      description: "500 айлын орон сууцны хороолол. Суурь, шат, хана хавтан зэргийг нийлүүлсэн.",
-      location: "Дархан хот",
-      year: "2023",
-      image: null,
-    },
-    {
-      id: "3",
-      title: "Үйлдвэрийн Байр",
-      description: "Хүнд үйлдвэрийн зориулалттай 15,000 м² талбай бүхий байр. Армирован бетон дамнуруу ашигласан.",
-      location: "Эрдэнэт хот",
-      year: "2023",
-      image: null,
-    },
-  ],
-  partners: [
-    {
-      id: "1",
-      name: "Монгол Барилга ХХК",
-      logo: null,
-      description: "Барилгын үндсэн түүхий эдээр хангадаг гол түнш",
-      projects: ["Төв цэвэрлэх байгууламж", "Дархан шинэ хороолол"],
-      website: "www.mongolbarillga.mn",
-      contactPerson: "Б. Болд",
-      phone: "9911-1234",
-      email: "info@mongolbarillga.mn",
-    },
-    {
-      id: "2",
-      name: "Эрдэнэт Барилга",
-      logo: null,
-      description: "Эрдэнэт хотын барилгын төслүүдийн гүйцэтгэгч",
-      projects: ["Эрдэнэт ус татуурга"],
-      website: "",
-      contactPerson: "Д. Дорж",
-      phone: "9922-5678",
-      email: "erdenet@construction.mn",
-    },
-    {
-      id: "3",
-      name: "ABC Construction",
-      logo: null,
-      description: "Олон улсын стандартын барилгын материал",
-      projects: ["Оюу толгой дэд бүтэц", "Говийн бүс нутаг хөгжил"],
-      website: "www.abcconstruction.com",
-      contactPerson: "John Smith",
-      phone: "9933-9999",
-      email: "contact@abcconstruction.com",
-    },
-    {
-      id: "4",
-      name: "Дархан Метал",
-      logo: null,
-      description: "Металл бүтээцийн гол нийлүүлэгч",
-      projects: ["Дарханы ус хангамж"],
-      website: "",
-      contactPerson: "С. Сүхбат",
-      phone: "9944-1111",
-      email: "sales@darkhanmetal.mn",
-    },
-  ],
-  heroSlides: [
-    {
-      id: "1",
-      image: "",
-      title: "Төмөр бетон эдлэлийн үйлдвэр",
-      subtitle: "Монгол улсын тэргүүлэгч барилгын материалын үйлдвэрлэгч",
-      buttonText: "Дэлгэрэнгүй",
-      buttonLink: "/about",
-      isActive: true,
-      order: 1,
-    },
-    {
-      id: "2",
-      image: "",
-      title: "Чанартай бүтээгдэхүүн",
-      subtitle: "Олон улсын стандартад нийцсэн төмөр бетон эдлэлүүд",
-      buttonText: "Бүтээгдэхүүн харах",
-      buttonLink: "/products",
-      isActive: true,
-      order: 2,
-    },
-    {
-      id: "3",
-      image: "",
-      title: "Итгэлтэй түншлэл",
-      subtitle: "100+ томоохон төсөлд амжилттай хамтран ажилласан",
-      buttonText: "Төслүүд харах",
-      buttonLink: "/projects",
-      isActive: true,
-      order: 3,
-    },
-  ],
+  heroSlides: [],
+  categories: [],
+  products: [],
+  projects: [],
+  partners: [],
   aboutContent: {
     mainTitle: "Бидний тухай",
-    mainDescription:
-      "Major Supply LLC нь 2010 онд үүсгэн байгуулагдсан бөгөөд Монгол улсын барилгын салбарт төмөр бетон эдлэл үйлдвэрлэх, нийлүүлэх чиглэлээр тэргүүлэгч компани юм. Бид олон улсын стандартад нийцсэн, чанартай бүтээгдэхүүн үйлдвэрлэж, харилцагч байгууллагуудадаа итгэлтэй түншлэлийг санал болгодог.",
-    mission:
-      "Монгол улсын барилгын салбарт дэлхийн жишигт нийцсэн чанартай төмөр бетон эдлэлийг хүргэж, тогтвортой хөгжилд хувь нэмэр оруулах.",
-    vision:
-      "Төв Азийн бүс нутагт төмөр бетон эдлэлийн үйлдвэрлэлээр тэргүүлэгч компани болох.",
-    history:
-      "2010 онд 20 ажилтантайгаар үйл ажиллагаагаа эхэлсэн бид өнөөдөр 200 гаруй ажилтантай, орчин үеийн тоног төхөөрөмжөөр тоноглогдсон үйлдвэртэй болсон.",
+    mainDescription: "",
+    mission: "",
+    vision: "",
+    history: "",
     images: [],
-    stats: [
-      { label: "Жилийн туршлага", value: "15+" },
-      { label: "Амжилттай төсөл", value: "500+" },
-      { label: "Ажилтнууд", value: "200+" },
-      { label: "Хамтрагч байгууллага", value: "50+" },
-    ],
-    team: [
-      {
-        id: "1",
-        name: "Б. Батболд",
-        position: "Гүйцэтгэх захирал",
-        image: "",
-        bio: "20 жилийн туршлагатай удирдах ажилтан",
-      },
-      {
-        id: "2",
-        name: "Д. Дэлгэрмаа",
-        position: "Санхүүгийн захирал",
-        image: "",
-        bio: "Санхүү, нягтлан бодох бүртгэлийн мэргэжилтэн",
-      },
-    ],
+    stats: [],
+    team: [],
   },
   contactContent: {
     pageTitle: "Холбоо барих",
-    pageDescription: "Бидэнтэй холбогдох хамгийн хурдан арга замууд",
-    mainInfo: [
-      { id: "1", type: "phone", label: "Утас", value: "+976 7000 1234" },
-      { id: "2", type: "phone", label: "Факс", value: "+976 7000 1235" },
-      { id: "3", type: "email", label: "И-мэйл", value: "info@majorsupply.mn" },
-      {
-        id: "4",
-        type: "address",
-        label: "Хаяг",
-        value: "Улаанбаатар хот, Баянзүрх дүүрэг, 1-р хороо, Төв зам 100",
-      },
-      { id: "5", type: "hours", label: "Ажлын цаг", value: "Даваа - Баасан: 09:00 - 18:00" },
-    ],
-    socialLinks: [
-      { id: "1", platform: "Facebook", url: "https://facebook.com/majorsupply", icon: "facebook" },
-      { id: "2", platform: "Instagram", url: "https://instagram.com/majorsupply", icon: "instagram" },
-      { id: "3", platform: "Website", url: "https://majorsupply.mn", icon: "globe" },
-    ],
-    branches: [
-      {
-        id: "1",
-        name: "Төв оффис",
-        address: "Улаанбаатар хот, Баянзүрх дүүрэг, 1-р хороо",
-        phone: "+976 7000 1234",
-        email: "office@majorsupply.mn",
-        hours: "09:00 - 18:00",
-        mapUrl: "https://maps.google.com",
-        image: "",
-      },
-      {
-        id: "2",
-        name: "Үйлдвэр",
-        address: "Төв аймаг, Зуунмод сум",
-        phone: "+976 7000 5678",
-        email: "factory@majorsupply.mn",
-        hours: "08:00 - 17:00",
-        mapUrl: "https://maps.google.com",
-        image: "",
-      },
-    ],
+    pageDescription: "",
+    mainInfo: [],
+    socialLinks: [],
+    branches: [],
     formSettings: {
       enabled: true,
-      emailTo: "info@majorsupply.mn",
-      successMessage:
-        "Таны хүсэлт амжилттай илгээгдлээ. Бид тантай удахгүй холбогдох болно.",
+      emailTo: "",
+      successMessage: "Таны хүсэлт амжилттай илгээгдлээ.",
     },
   },
 }
 
-// =====================
-// Context
-// =====================
-
+// =============================================
+// CONTEXT
+// =============================================
 interface SiteDataContextValue {
   data: SiteData
-  hydrated: boolean
+  loading: boolean
+  setHeroSlides: (fn: (prev: HeroSlide[]) => HeroSlide[]) => void
+  setCategories: (fn: (prev: Category[]) => Category[]) => void
+  setProducts: (fn: (prev: Product[]) => Product[]) => void
+  setProjects: (fn: (prev: Project[]) => Project[]) => void
+  setPartners: (fn: (prev: Partner[]) => Partner[]) => void
+  setAboutContent: (fn: (prev: AboutContent) => AboutContent) => void
+  setContactContent: (fn: (prev: ContactContent) => ContactContent) => void
   setCompanyInfo: (info: CompanyInfo) => void
-  setProducts: (next: Product[] | ((prev: Product[]) => Product[])) => void
-  setCategories: (next: Category[] | ((prev: Category[]) => Category[])) => void
-  setProjects: (next: Project[] | ((prev: Project[]) => Project[])) => void
-  setPartners: (next: Partner[] | ((prev: Partner[]) => Partner[])) => void
-  setHeroSlides: (next: HeroSlide[] | ((prev: HeroSlide[]) => HeroSlide[])) => void
-  setAboutContent: (next: AboutContent | ((prev: AboutContent) => AboutContent)) => void
-  setContactContent: (next: ContactContent | ((prev: ContactContent) => ContactContent)) => void
-  resetAll: () => void
+  refetch: () => void
 }
 
 const SiteDataContext = createContext<SiteDataContextValue | null>(null)
 
-const STORAGE_KEY = "major-supply:site-data:v1"
-
-function loadFromStorage(): SiteData | null {
-  if (typeof window === "undefined") return null
+// =============================================
+// HELPER: base64 зургийг Supabase Storage-д upload хийх
+// =============================================
+async function uploadBase64Image(base64: string, bucket: string, path: string): Promise<string> {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw)
-    return { ...defaultData, ...parsed } as SiteData
+    if (!base64 || base64.startsWith("/") || base64.startsWith("http")) {
+      return base64
+    }
+    const base64Data = base64.split(",")[1]
+    const mimeType = base64.split(";")[0].split(":")[1] || "image/jpeg"
+    const byteCharacters = atob(base64Data)
+    const byteNumbers = new Array(byteCharacters.length)
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i)
+    }
+    const byteArray = new Uint8Array(byteNumbers)
+    const blob = new Blob([byteArray], { type: mimeType })
+    const ext = mimeType.split("/")[1] || "jpg"
+    const fileName = `${path}-${Date.now()}.${ext}`
+
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .upload(fileName, blob, { contentType: mimeType, upsert: true })
+
+    if (error) return base64
+
+    const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(data.path)
+    return urlData.publicUrl
   } catch {
-    return null
+    return base64
   }
 }
 
-export function SiteDataProvider({ children }: { children: ReactNode }) {
+// =============================================
+// PROVIDER
+// =============================================
+export function SiteDataProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<SiteData>(defaultData)
-  const [hydrated, setHydrated] = useState(false)
+  const [loading, setLoading] = useState(true)
 
-  // Hydrate from localStorage on mount (client-only)
-  useEffect(() => {
-    const stored = loadFromStorage()
-    if (stored) setData(stored)
-    setHydrated(true)
+  const fetchAll = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [
+        { data: companyRows },
+        { data: slides },
+        { data: cats },
+        { data: prods },
+        { data: projs },
+        { data: parts },
+        { data: abouts },
+        { data: contacts },
+      ] = await Promise.all([
+        supabase.from("company_info").select("*").limit(1),
+        supabase.from("hero_slides").select("*").order("order"),
+        supabase.from("categories").select("*").order("created_at"),
+        supabase.from("products").select("*").order("created_at"),
+        supabase.from("projects").select("*").order("created_at"),
+        supabase.from("partners").select("*").order("created_at"),
+        supabase.from("about_content").select("*").limit(1),
+        supabase.from("contact_content").select("*").limit(1),
+      ])
+
+      const company = companyRows?.[0]
+      const about = abouts?.[0]
+      const contact = contacts?.[0]
+
+      setData({
+        companyInfo: company
+          ? {
+              name: company.name,
+              phone: company.phone,
+              email: company.email,
+              address: company.address,
+              logo: company.logo || "/logo.png",
+            }
+          : defaultData.companyInfo,
+
+        heroSlides: (slides || []).map((s) => ({
+          id: s.id,
+          image: s.image || "",
+          title: s.title,
+          subtitle: s.subtitle || "",
+          buttonText: s.button_text || "",
+          buttonLink: s.button_link || "",
+          isActive: s.is_active,
+          order: s.order,
+        })),
+
+        categories: (cats || []).map((c) => ({
+          id: c.id,
+          title: c.title,
+          description: c.description || "",
+          productCount: 0,
+        })),
+
+        products: (prods || []).map((p) => ({
+          id: p.id,
+          title: p.title,
+          category: p.category || "",
+          description: p.description || "",
+          details: p.details || "",
+          image: p.image,
+        })),
+
+        projects: (projs || []).map((p) => ({
+          id: p.id,
+          title: p.title,
+          description: p.description || "",
+          location: p.location || "",
+          year: p.year || "",
+          image: p.image,
+        })),
+
+        partners: (parts || []).map((p) => ({
+          id: p.id,
+          name: p.name,
+          logo: p.logo,
+          description: p.description || "",
+          projects: p.projects || [],
+          website: p.website || "",
+          contactPerson: p.contact_person || "",
+          phone: p.phone || "",
+          email: p.email,
+        })),
+
+        aboutContent: about
+          ? {
+              mainTitle: about.main_title || "",
+              mainDescription: about.main_description || "",
+              mission: about.mission || "",
+              vision: about.vision || "",
+              history: about.history || "",
+              images: about.images || [],
+              stats: about.stats || [],
+              team: about.team || [],
+            }
+          : defaultData.aboutContent,
+
+        contactContent: contact
+          ? {
+              pageTitle: contact.page_title || "",
+              pageDescription: contact.page_description || "",
+              mainInfo: contact.main_info || [],
+              socialLinks: contact.social_links || [],
+              branches: contact.branches || [],
+              formSettings: contact.form_settings || defaultData.contactContent.formSettings,
+            }
+          : defaultData.contactContent,
+      })
+    } catch (err) {
+      console.error("Fetch error:", err)
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
-  // Persist to localStorage when data changes (after hydration)
   useEffect(() => {
-    if (!hydrated) return
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-    } catch {
-      // ignore quota errors silently
+    fetchAll()
+  }, [fetchAll])
+
+  // =============================================
+  // SETTERS — Supabase-д хадгалах
+  // =============================================
+
+  const setHeroSlides = useCallback(async (fn: (prev: HeroSlide[]) => HeroSlide[]) => {
+    const next = fn(data.heroSlides)
+
+    // Зургуудыг upload хийх
+    const processed = await Promise.all(
+      next.map(async (s) => ({
+        ...s,
+        image: s.image ? await uploadBase64Image(s.image, "images", `slide-${s.id}`) : "",
+      }))
+    )
+
+    setData((prev) => ({ ...prev, heroSlides: processed }))
+
+    // Supabase sync
+    const existing = await supabase.from("hero_slides").select("id")
+    const existingIds = (existing.data || []).map((r) => r.id)
+    const nextIds = processed.map((s) => s.id)
+
+    // Устгах
+    const toDelete = existingIds.filter((id) => !nextIds.includes(id))
+    if (toDelete.length > 0) {
+      await supabase.from("hero_slides").delete().in("id", toDelete)
     }
-  }, [data, hydrated])
 
-  const value: SiteDataContextValue = {
-    data,
-    hydrated,
-    setCompanyInfo: (companyInfo) => setData((d) => ({ ...d, companyInfo })),
-    setProducts: (next) =>
-      setData((d) => ({
-        ...d,
-        products: typeof next === "function" ? (next as (p: Product[]) => Product[])(d.products) : next,
-      })),
-    setCategories: (next) =>
-      setData((d) => ({
-        ...d,
-        categories: typeof next === "function" ? (next as (p: Category[]) => Category[])(d.categories) : next,
-      })),
-    setProjects: (next) =>
-      setData((d) => ({
-        ...d,
-        projects: typeof next === "function" ? (next as (p: Project[]) => Project[])(d.projects) : next,
-      })),
-    setPartners: (next) =>
-      setData((d) => ({
-        ...d,
-        partners: typeof next === "function" ? (next as (p: Partner[]) => Partner[])(d.partners) : next,
-      })),
-    setHeroSlides: (next) =>
-      setData((d) => ({
-        ...d,
-        heroSlides: typeof next === "function" ? (next as (p: HeroSlide[]) => HeroSlide[])(d.heroSlides) : next,
-      })),
-    setAboutContent: (next) =>
-      setData((d) => ({
-        ...d,
-        aboutContent:
-          typeof next === "function" ? (next as (p: AboutContent) => AboutContent)(d.aboutContent) : next,
-      })),
-    setContactContent: (next) =>
-      setData((d) => ({
-        ...d,
-        contactContent:
-          typeof next === "function" ? (next as (p: ContactContent) => ContactContent)(d.contactContent) : next,
-      })),
-    resetAll: () => {
-      setData(defaultData)
-      try {
-        window.localStorage.removeItem(STORAGE_KEY)
-      } catch {
-        // ignore
-      }
-    },
-  }
+    // Upsert
+    await supabase.from("hero_slides").upsert(
+      processed.map((s) => ({
+        id: s.id,
+        image: s.image,
+        title: s.title,
+        subtitle: s.subtitle,
+        button_text: s.buttonText,
+        button_link: s.buttonLink,
+        is_active: s.isActive,
+        order: s.order,
+      }))
+    )
+  }, [data.heroSlides])
 
-  return <SiteDataContext.Provider value={value}>{children}</SiteDataContext.Provider>
+  const setCategories = useCallback(async (fn: (prev: Category[]) => Category[]) => {
+    const next = fn(data.categories)
+    setData((prev) => ({ ...prev, categories: next }))
+
+    const existing = await supabase.from("categories").select("id")
+    const existingIds = (existing.data || []).map((r) => r.id)
+    const nextIds = next.map((c) => c.id)
+
+    const toDelete = existingIds.filter((id) => !nextIds.includes(id))
+    if (toDelete.length > 0) {
+      await supabase.from("categories").delete().in("id", toDelete)
+    }
+
+    await supabase.from("categories").upsert(
+      next.map((c) => ({
+        id: c.id,
+        title: c.title,
+        description: c.description,
+      }))
+    )
+  }, [data.categories])
+
+  const setProducts = useCallback(async (fn: (prev: Product[]) => Product[]) => {
+    const next = fn(data.products)
+
+    const processed = await Promise.all(
+      next.map(async (p) => ({
+        ...p,
+        image: p.image ? await uploadBase64Image(p.image, "images", `product-${p.id}`) : null,
+      }))
+    )
+
+    setData((prev) => ({ ...prev, products: processed }))
+
+    const existing = await supabase.from("products").select("id")
+    const existingIds = (existing.data || []).map((r) => r.id)
+    const nextIds = processed.map((p) => p.id)
+
+    const toDelete = existingIds.filter((id) => !nextIds.includes(id))
+    if (toDelete.length > 0) {
+      await supabase.from("products").delete().in("id", toDelete)
+    }
+
+    await supabase.from("products").upsert(
+      processed.map((p) => ({
+        id: p.id,
+        title: p.title,
+        category: p.category,
+        description: p.description,
+        details: p.details,
+        image: p.image,
+      }))
+    )
+  }, [data.products])
+
+  const setProjects = useCallback(async (fn: (prev: Project[]) => Project[]) => {
+    const next = fn(data.projects)
+
+    const processed = await Promise.all(
+      next.map(async (p) => ({
+        ...p,
+        image: p.image ? await uploadBase64Image(p.image, "images", `project-${p.id}`) : null,
+      }))
+    )
+
+    setData((prev) => ({ ...prev, projects: processed }))
+
+    const existing = await supabase.from("projects").select("id")
+    const existingIds = (existing.data || []).map((r) => r.id)
+    const nextIds = processed.map((p) => p.id)
+
+    const toDelete = existingIds.filter((id) => !nextIds.includes(id))
+    if (toDelete.length > 0) {
+      await supabase.from("projects").delete().in("id", toDelete)
+    }
+
+    await supabase.from("projects").upsert(
+      processed.map((p) => ({
+        id: p.id,
+        title: p.title,
+        description: p.description,
+        location: p.location,
+        year: p.year,
+        image: p.image,
+      }))
+    )
+  }, [data.projects])
+
+  const setPartners = useCallback(async (fn: (prev: Partner[]) => Partner[]) => {
+    const next = fn(data.partners)
+
+    const processed = await Promise.all(
+      next.map(async (p) => ({
+        ...p,
+        logo: p.logo ? await uploadBase64Image(p.logo, "images", `partner-${p.id}`) : null,
+      }))
+    )
+
+    setData((prev) => ({ ...prev, partners: processed }))
+
+    const existing = await supabase.from("partners").select("id")
+    const existingIds = (existing.data || []).map((r) => r.id)
+    const nextIds = processed.map((p) => p.id)
+
+    const toDelete = existingIds.filter((id) => !nextIds.includes(id))
+    if (toDelete.length > 0) {
+      await supabase.from("partners").delete().in("id", toDelete)
+    }
+
+    await supabase.from("partners").upsert(
+      processed.map((p) => ({
+        id: p.id,
+        name: p.name,
+        logo: p.logo,
+        description: p.description,
+        projects: p.projects,
+        website: p.website,
+        contact_person: p.contactPerson,
+        phone: p.phone,
+        email: p.email,
+      }))
+    )
+  }, [data.partners])
+
+  const setAboutContent = useCallback(async (fn: (prev: AboutContent) => AboutContent) => {
+    const next = fn(data.aboutContent)
+    setData((prev) => ({ ...prev, aboutContent: next }))
+
+    const { data: existing } = await supabase.from("about_content").select("id").limit(1)
+    const id = existing?.[0]?.id
+
+    const row = {
+      main_title: next.mainTitle,
+      main_description: next.mainDescription,
+      mission: next.mission,
+      vision: next.vision,
+      history: next.history,
+      images: next.images,
+      stats: next.stats,
+      team: next.team,
+      updated_at: new Date().toISOString(),
+    }
+
+    if (id) {
+      await supabase.from("about_content").update(row).eq("id", id)
+    } else {
+      await supabase.from("about_content").insert(row)
+    }
+  }, [data.aboutContent])
+
+  const setContactContent = useCallback(async (fn: (prev: ContactContent) => ContactContent) => {
+    const next = fn(data.contactContent)
+    setData((prev) => ({ ...prev, contactContent: next }))
+
+    const { data: existing } = await supabase.from("contact_content").select("id").limit(1)
+    const id = existing?.[0]?.id
+
+    const row = {
+      page_title: next.pageTitle,
+      page_description: next.pageDescription,
+      main_info: next.mainInfo,
+      social_links: next.socialLinks,
+      branches: next.branches,
+      form_settings: next.formSettings,
+      updated_at: new Date().toISOString(),
+    }
+
+    if (id) {
+      await supabase.from("contact_content").update(row).eq("id", id)
+    } else {
+      await supabase.from("contact_content").insert(row)
+    }
+  }, [data.contactContent])
+
+  const setCompanyInfo = useCallback(async (info: CompanyInfo) => {
+    const logo = info.logo
+      ? await uploadBase64Image(info.logo, "images", "company-logo")
+      : info.logo
+
+    const updated = { ...info, logo }
+    setData((prev) => ({ ...prev, companyInfo: updated }))
+
+    const { data: existing } = await supabase.from("company_info").select("id").limit(1)
+    const id = existing?.[0]?.id
+
+    const row = {
+      name: updated.name,
+      phone: updated.phone,
+      email: updated.email,
+      address: updated.address,
+      logo: updated.logo,
+      updated_at: new Date().toISOString(),
+    }
+
+    if (id) {
+      await supabase.from("company_info").update(row).eq("id", id)
+    } else {
+      await supabase.from("company_info").insert(row)
+    }
+  }, [data.companyInfo])
+
+  return (
+    <SiteDataContext.Provider
+      value={{
+        data,
+        loading,
+        setHeroSlides,
+        setCategories,
+        setProducts,
+        setProjects,
+        setPartners,
+        setAboutContent,
+        setContactContent,
+        setCompanyInfo,
+        refetch: fetchAll,
+      }}
+    >
+      {children}
+    </SiteDataContext.Provider>
+  )
 }
 
 export function useSiteData() {
   const ctx = useContext(SiteDataContext)
-  if (!ctx) {
-    throw new Error("useSiteData must be used within SiteDataProvider")
-  }
+  if (!ctx) throw new Error("useSiteData must be used within SiteDataProvider")
   return ctx
 }
